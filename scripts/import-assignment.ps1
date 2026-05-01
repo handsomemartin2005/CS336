@@ -12,9 +12,29 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $repo = "https://github.com/stanford-cs336/$Name.git"
 $target = Join-Path $PSScriptRoot "..\assignments\$Name"
 $temp = Join-Path ([System.IO.Path]::GetTempPath()) ("cs336-" + $Name + "-" + [System.Guid]::NewGuid())
+
+function Get-LocalGitConfig {
+    param([string]$Key)
+
+    $value = git -C $repoRoot config --local --get $Key 2>$null
+    if ($LASTEXITCODE -eq 0 -and $value) {
+        return $value.Trim()
+    }
+
+    return $null
+}
+
+$gitConfigArgs = @()
+foreach ($key in @("http.proxy", "https.proxy", "http.sslBackend")) {
+    $value = Get-LocalGitConfig $key
+    if ($value) {
+        $gitConfigArgs += @("-c", "$key=$value")
+    }
+}
 
 if (-not (Test-Path $target)) {
     New-Item -ItemType Directory -Path $target | Out-Null
@@ -25,7 +45,7 @@ if ($existing) {
     throw "Target folder is not empty: $target"
 }
 
-git clone --depth 1 $repo $temp
+git @gitConfigArgs clone --depth 1 $repo $temp
 Remove-Item -LiteralPath (Join-Path $temp ".git") -Recurse -Force
 
 $studyReadme = Join-Path $target "README.md"
